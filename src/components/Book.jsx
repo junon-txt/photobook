@@ -1,10 +1,13 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import Page from './Page.jsx'
 import ZoomOverlay from './ZoomOverlay.jsx'
+
+const SWIPE_THRESHOLD = 50
 
 export default function Book({ pages }) {
   const [spreadIndex, setSpreadIndex] = useState(0)
   const [zoomedItem, setZoomedItem]   = useState(null)
+  const touchStartX = useRef(null)
 
   const total    = pages.length
   const slices   = Math.min(Math.ceil(total / 4), 8)
@@ -21,11 +24,24 @@ export default function Book({ pages }) {
     else setZoomedItem(item)
   }, [goToPage])
 
+  const onTouchStart = e => { touchStartX.current = e.touches[0].clientX }
+  const onTouchEnd   = e => {
+    if (touchStartX.current === null) return
+    const delta = e.changedTouches[0].clientX - touchStartX.current
+    touchStartX.current = null
+    if (delta < -SWIPE_THRESHOLD && hasRight) setSpreadIndex(s => s + 2)
+    if (delta >  SWIPE_THRESHOLD && hasLeft)  setSpreadIndex(s => s - 2)
+  }
+
   const stackRange = Array.from({ length: slices }, (_, i) => i + 1)
 
   return (
     <>
-      <div className="book">
+      <div
+        className="book"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <div className="book-cover" />
 
         {stackRange.map(i => (
