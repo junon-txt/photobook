@@ -387,13 +387,21 @@ body::before {
 .book-nav--left  { left:  0; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
 .book-nav--right { right: 0; background: linear-gradient(to left,  rgba(0,0,0,0.3), transparent); }
 
-/* Portrait on touch: rotate book to preview landscape, recalculate size for swapped axes */
+/* Portrait on touch: rotate book+shelf to preview landscape, recalculate size for swapped axes */
 @media (pointer: coarse) and (orientation: portrait) {
   :root {
     /* In portrait: vh is the long axis. Derive book-w from vh the same way landscape uses vw. */
     --book-w: min(92vh, calc(95vw / 0.63));
   }
   .book { transform: rotate(-90deg); }
+  /* Shelf: swap dimensions so it fills the landscape viewport, then rotate into place */
+  .shelf {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(-90deg);
+  }
+  /* shelf height is 100vw (short side); remove vertical padding so books don't overflow it */
+  .shelf-track { padding: 0; }
 }
 
 /* On touch devices: nav arrows always faintly visible (no hover available) */

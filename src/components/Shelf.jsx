@@ -6,24 +6,31 @@ const SNAP_PX        = 50
 const ADJACENT_SHOW  = 80   // px of adjacent book visible at screen edge
 const DEFAULT_COLOR  = '#3a1f08'
 
-// Mirror the CSS: --book-w: min(95vw, calc(92vh / 0.63))
+// Mirror the CSS formulas:
+//   landscape: --book-w: min(95vw, calc(92vh / 0.63))
+//   portrait:  --book-w: min(92vh, calc(95vw / 0.63))  (shelf is rotated, effective width = vh)
 function computeBookDims() {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const bookW  = Math.min(vw * 0.95, (vh * 0.92) / 0.63)
+  const portrait = window.matchMedia('(pointer: coarse) and (orientation: portrait)').matches
+  const bookW  = portrait
+    ? Math.min(vh * 0.92, (vw * 0.95) / 0.63)
+    : Math.min(vw * 0.95, (vh * 0.92) / 0.63)
   const pageW  = bookW / 2
   const pageH  = bookW * 0.63
   const coverW = pageW + SPINE_W
-  // Spacing: active book centered, adjacent shows ADJACENT_SHOW px from edge
-  const spacing = vw / 2 + coverW / 2 - ADJACENT_SHOW
+  // In portrait the shelf's CSS width is 100vh, so centering uses vh as effective viewport width
+  const effectiveW = portrait ? vh : vw
+  const spacing = effectiveW / 2 + coverW / 2 - ADJACENT_SHOW
   return { pageW, pageH, coverW, spacing }
 }
 
 export default function Shelf({ books, activeIdx, onActiveChange, onSelect }) {
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const drag          = useRef(null)
-  const containerRef  = useRef(null)
+  const drag         = useRef(null)
+  const didDrag      = useRef(false)
+  const containerRef = useRef(null)
 
   function trackX() {
     const { coverW, spacing } = computeBookDims()
@@ -31,16 +38,52 @@ export default function Shelf({ books, activeIdx, onActiveChange, onSelect }) {
     return w / 2 - coverW / 2 - activeIdx * spacing + dragOffset
   }
 
-  function dragStart(x) { drag.current = { startX: x, moved: false } }
+  // Mouse drag: attach move/up to document so releasing outside the shelf still commits
+  function mouseDragStart(x) {
+    drag.current = { startX: x, moved: false }
+    didDrag.current = false
 
-  function dragMove(x) {
+    const onMove = e => {
+      if (!drag.current) return
+      const dx = e.clientX - drag.current.startX
+      if (!drag.current.moved && Math.abs(dx) > DRAG_PX) {
+        drag.current.moved = true
+        setIsDragging(true)
+      }
+      if (drag.current.moved) setDragOffset(dx)
+    }
+
+    const onUp = e => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      if (!drag.current) return
+      const { startX, moved } = drag.current
+      didDrag.current = moved
+      drag.current = null
+      setDragOffset(0)
+      setIsDragging(false)
+      if (moved) {
+        const dx = e.clientX - startX
+        if (dx < -SNAP_PX && activeIdx < books.length - 1) onActiveChange(activeIdx + 1)
+        else if (dx > SNAP_PX && activeIdx > 0) onActiveChange(activeIdx - 1)
+      }
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // Touch drag: touchend always fires on the originating element, so inline handlers work fine
+  function touchDragStart(x) { drag.current = { startX: x, moved: false } }
+
+  function touchDragMove(x) {
     if (!drag.current) return
     const dx = x - drag.current.startX
     if (!drag.current.moved && Math.abs(dx) > DRAG_PX) { drag.current.moved = true; setIsDragging(true) }
     if (drag.current.moved) setDragOffset(dx)
   }
 
-  function dragEnd(x) {
+  function touchDragEnd(x) {
     if (!drag.current) return
     const { startX, moved } = drag.current
     drag.current = null; setDragOffset(0); setIsDragging(false)
@@ -52,7 +95,7 @@ export default function Shelf({ books, activeIdx, onActiveChange, onSelect }) {
   }
 
   function handleBookClick(idx) {
-    if (drag.current?.moved) return
+    if (didDrag.current) { didDrag.current = false; return }
     if (idx !== activeIdx) { onActiveChange(idx); return }
     onSelect(books[idx])
   }
@@ -63,13 +106,10 @@ export default function Shelf({ books, activeIdx, onActiveChange, onSelect }) {
     <div
       ref={containerRef}
       className="shelf"
-      onMouseDown={e => dragStart(e.clientX)}
-      onMouseMove={e => dragMove(e.clientX)}
-      onMouseUp={e => dragEnd(e.clientX)}
-      onMouseLeave={() => { drag.current = null; setDragOffset(0); setIsDragging(false) }}
-      onTouchStart={e => dragStart(e.touches[0].clientX)}
-      onTouchMove={e => dragMove(e.touches[0].clientX)}
-      onTouchEnd={e => dragEnd(e.changedTouches[0].clientX)}
+      onMouseDown={e => mouseDragStart(e.clientX)}
+      onTouchStart={e => touchDragStart(e.touches[0].clientX)}
+      onTouchMove={e => touchDragMove(e.touches[0].clientX)}
+      onTouchEnd={e => touchDragEnd(e.changedTouches[0].clientX)}
     >
       <div
         className="shelf-track"
