@@ -1,0 +1,452 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap');
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --book-w: min(95vw, calc(92vh / 0.63));
+  --page-w: calc(var(--book-w) / 2);
+  --page-h: calc(var(--book-w) * 0.63);
+  --cover-bleed: 16px;
+  --spine-r: 14px;
+  --book-color: #3a1f08;   /* default; overridden per-book via inline style */
+  --page-bg: #fafaf8;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #5a3a1a;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: -1;
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  body::before {
+    /* Swap dimensions so the image fills the screen as if it were landscape, then rotate */
+    inset: auto;
+    width: 100vh;
+    height: 100vw;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+  }
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: sans-serif;
+  color: #eee;
+}
+
+.status-message { font-size: 15px; color: #aaa; }
+
+/* ── Book ───────────────────────────────────────────────────────────────── */
+
+.book {
+  position: relative;
+  width: var(--book-w);
+  height: var(--page-h);
+  display: flex;
+}
+
+.book-cover {
+  position: absolute;
+  inset: calc(-1 * var(--cover-bleed));
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--book-color) 70%, #fff) 0%,
+    var(--book-color) 55%,
+    color-mix(in srgb, var(--book-color) 70%, #000) 100%);
+  border-radius: 3px;
+  z-index: 0;
+}
+
+/* ── Page stacks ────────────────────────────────────────────────────────── */
+
+.stack-slice {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: var(--page-w);
+  z-index: 1;
+  background: hsl(55, 4%, calc(89% - var(--i) * 2%));
+}
+
+.stack-slice--left {
+  right: 50%;
+  transform: translate(calc(var(--i) * -2px), calc(var(--i) * 1.5px));
+  border-radius: 3px calc(var(--spine-r) - var(--i) * 1px)
+                     calc(var(--spine-r) - var(--i) * 1px) 3px;
+}
+
+.stack-slice--right {
+  left: 50%;
+  transform: translate(calc(var(--i) * 2px), calc(var(--i) * 1.5px));
+  border-radius: calc(var(--spine-r) - var(--i) * 1px) 3px
+                     3px calc(var(--spine-r) - var(--i) * 1px);
+}
+
+/* ── Pages ──────────────────────────────────────────────────────────────── */
+
+.page {
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  background: var(--page-bg);
+  padding: 18px 16px;
+  overflow: hidden;
+}
+
+.page--left  { border-radius: 3px var(--spine-r) var(--spine-r) 3px; }
+.page--right { border-radius: var(--spine-r) 3px 3px var(--spine-r); }
+
+.book-spine {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(0,0,0,0.04) 0%,
+    rgba(0,0,0,0.20) 38%,
+    rgba(0,0,0,0.20) 62%,
+    rgba(0,0,0,0.04) 100%
+  );
+}
+
+/* ── Page content ───────────────────────────────────────────────────────── */
+
+.page-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Landscape (default): photo on top, annotation below */
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Portrait: photo on left, annotation on right */
+.item--portrait {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Reversed landscape: annotation above photo */
+.item--reversed { flex-direction: column-reverse; }
+
+/* Reversed portrait: photo on right, annotation on left */
+.item--portrait.item--reversed { flex-direction: row-reverse; }
+
+.item-media {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+
+.item-media:hover { transform: scale(1.025); }
+
+/* Portrait: media shrinks to leave room for text */
+.item--portrait .item-media {
+  flex: 0 0 55%;
+  width: 55%;
+  height: 100%;
+}
+
+.item-media img {
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+  box-shadow: 1px 2px 8px rgba(0,0,0,0.18);
+}
+
+.item-annotation {
+  font-family: 'Caveat', cursive;
+  font-size: 17px;
+  color: #444;
+  text-align: center;
+  line-height: 1.35;
+  padding: 0 4px;
+  cursor: zoom-in;
+}
+
+.item--portrait .item-annotation {
+  flex: 1;
+  text-align: left;
+  font-size: 17px;
+  align-self: center;
+}
+
+/* ── Index list ─────────────────────────────────────────────────────────── */
+
+.index-list {
+  list-style: none;
+  width: 100%;
+  padding: 16px 20px;
+}
+
+.index-list li {
+  padding: 7px 0;
+  border-bottom: 1px solid #e5e4df;
+}
+
+.index-list a {
+  font-family: 'Caveat', cursive;
+  font-size: 19px;
+  color: #333;
+  text-decoration: none;
+}
+
+.index-list a:hover { color: #000; text-decoration: underline; }
+
+/* ── Shelf ──────────────────────────────────────────────────────────────── */
+
+.shelf {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  position: relative;
+}
+
+.shelf:active { cursor: grabbing; }
+
+.shelf-track {
+  display: flex;
+  align-items: center;
+  gap: 64px;
+  padding: 24px 0;
+  will-change: transform;
+}
+
+.shelf-book {
+  flex-shrink: 0;
+  display: flex;
+  cursor: pointer;
+  transform: scale(0.88) translateY(8px);
+  transition: transform 0.3s ease;
+  filter: brightness(0.75);
+}
+
+.shelf-book--active {
+  transform: scale(1) translateY(0);
+  filter: brightness(1);
+}
+
+.shelf-book-spine {
+  width: 16px;
+  flex-shrink: 0;
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--book-color) 30%, #000),
+    color-mix(in srgb, var(--book-color) 55%, #000),
+    color-mix(in srgb, var(--book-color) 35%, #000));
+  border-radius: 2px 0 0 2px;
+}
+
+.shelf-book-front {
+  flex: 1;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--book-color) 70%, #fff) 0%,
+    var(--book-color) 55%,
+    color-mix(in srgb, var(--book-color) 70%, #000) 100%);
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  box-shadow: 4px 6px 18px rgba(0,0,0,0.55);
+}
+
+.shelf-book-title {
+  font-family: 'Caveat', cursive;
+  font-size: 22px;
+  font-weight: 600;
+  color: #e8d0a0;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.shelf-hint {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Caveat', cursive;
+  font-size: 17px;
+  color: rgba(255,255,255,0.55);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── Back button ────────────────────────────────────────────────────────── */
+
+.back-btn {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  z-index: 50;
+  background: rgba(0,0,0,0.45);
+  border: none;
+  border-radius: 6px;
+  color: #e8d0a0;
+  font-family: 'Caveat', cursive;
+  font-size: 18px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.back-btn:hover { background: rgba(0,0,0,0.65); }
+
+/* ── Rotate prompt ──────────────────────────────────────────────────────── */
+
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.72);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: #fff;
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+}
+
+.rotate-prompt-icon {
+  font-size: 72px;
+  animation: rotateHint 2s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes rotateHint {
+  0%, 40%  { transform: rotate(0deg); }
+  70%, 100% { transform: rotate(-90deg); }
+}
+
+/* ── Navigation arrows ──────────────────────────────────────────────────── */
+
+.book-nav {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 56px;
+  z-index: 10;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.book-nav:hover { opacity: 1; }
+
+.book-nav--left  { left:  0; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
+.book-nav--right { right: 0; background: linear-gradient(to left,  rgba(0,0,0,0.3), transparent); }
+
+/* Portrait on touch: rotate book+shelf to preview landscape, recalculate size for swapped axes */
+@media (pointer: coarse) and (orientation: portrait) {
+  :root {
+    /* In portrait: vh is the long axis. Derive book-w from vh the same way landscape uses vw. */
+    --book-w: min(92vh, calc(95vw / 0.63));
+  }
+  .book { transform: rotate(-90deg); }
+  /* Shelf: swap dimensions so it fills the landscape viewport, then rotate into place */
+  .shelf {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(-90deg);
+  }
+  /* shelf height is 100vw (short side); remove vertical padding so books don't overflow it */
+  .shelf-track { padding: 0; }
+}
+
+/* On touch devices: nav arrows always faintly visible (no hover available) */
+@media (hover: none) {
+  .book-nav         { opacity: 0.35; }
+  .book-nav:active  { opacity: 0.75; }
+}
+
+/* ── Zoom overlay ───────────────────────────────────────────────────────── */
+
+.zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+.zoom-body {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  cursor: default;
+}
+
+.zoom-media img,
+.zoom-media video {
+  max-height: 85vh;
+  max-width: 75vw;
+  object-fit: contain;
+  display: block;
+}
+
+.zoom-body.has-annotation .zoom-media img { max-width: 50vw; }
+
+.zoom-annotation {
+  font-family: 'Caveat', cursive;
+  font-size: 30px;
+  color: #fff;
+  max-width: 300px;
+  line-height: 1.45;
+}
