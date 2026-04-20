@@ -1,28 +1,31 @@
-import React, { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback } from 'react'
+import { bookAsset } from '../config.js'
 import Page from './Page.jsx'
 import ZoomOverlay from './ZoomOverlay.jsx'
 
 const SWIPE_THRESHOLD = 50
 
-export default function Book({ pages }) {
+export default function Book({ book, onClose }) {
   const [spreadIndex, setSpreadIndex] = useState(0)
   const [zoomedItem, setZoomedItem]   = useState(null)
-  const touchStartX = useRef(null)
+  const touchStartX = React.useRef(null)
+
+  const { pages, config } = book
+  const assetFn = useCallback(path => bookAsset(book.id, path), [book.id])
 
   const total    = pages.length
   const slices   = Math.min(Math.ceil(total / 4), 8)
   const hasLeft  = spreadIndex > 0
   const hasRight = spreadIndex + 2 < total
 
-  const goToPage = useCallback(id => {
-    const i = pages.findIndex(p => p.id === id)
-    if (i !== -1) setSpreadIndex(i % 2 === 0 ? i : i - 1)
-  }, [pages])
-
   const onItemClick = useCallback(item => {
-    if (item.kind === '_navigate') goToPage(item.targetPage)
-    else setZoomedItem(item)
-  }, [goToPage])
+    if (item.kind === '_navigate') {
+      const t = item.targetPage
+      setSpreadIndex(t % 2 === 0 ? t : t - 1)
+    } else {
+      setZoomedItem(item)
+    }
+  }, [])
 
   const onTouchStart = e => { touchStartX.current = e.touches[0].clientX }
   const onTouchEnd   = e => {
@@ -34,14 +37,13 @@ export default function Book({ pages }) {
   }
 
   const stackRange = Array.from({ length: slices }, (_, i) => i + 1)
+  const bookStyle  = config.color ? { '--book-color': config.color } : undefined
 
   return (
     <>
-      <div
-        className="book"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
+      <button className="back-btn" onClick={onClose}>← Back</button>
+
+      <div className="book" style={bookStyle} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="book-cover" />
 
         {stackRange.map(i => (
@@ -50,13 +52,13 @@ export default function Book({ pages }) {
         ))}
 
         <div className="page page--left">
-          <Page page={pages[spreadIndex]} onItemClick={onItemClick} />
+          <Page page={pages[spreadIndex]} onItemClick={onItemClick} assetFn={assetFn} />
         </div>
 
         <div className="book-spine" />
 
         <div className="page page--right">
-          <Page page={pages[spreadIndex + 1]} onItemClick={onItemClick} />
+          <Page page={pages[spreadIndex + 1]} onItemClick={onItemClick} assetFn={assetFn} />
         </div>
 
         {stackRange.map(i => (
@@ -68,7 +70,9 @@ export default function Book({ pages }) {
         {hasRight && <div className="book-nav book-nav--right" onClick={() => setSpreadIndex(s => s + 2)} />}
       </div>
 
-      {zoomedItem && <ZoomOverlay item={zoomedItem} onClose={() => setZoomedItem(null)} />}
+      {zoomedItem && (
+        <ZoomOverlay item={zoomedItem} onClose={() => setZoomedItem(null)} assetFn={assetFn} />
+      )}
     </>
   )
 }

@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
-import { asset } from '../config.js'
 
-export default function Item({ item, onItemClick, reversed = false }) {
+export default function Item({ item, onItemClick, reversed = false, assetFn }) {
   const [portrait, setPortrait] = useState(null)
 
   const src = item.kind === 'video' && item.still ? item.still : item.src
@@ -14,12 +13,9 @@ export default function Item({ item, onItemClick, reversed = false }) {
 
   return (
     <div className={classes}>
-      <div
-        className="item-media"
-        onClick={() => onItemClick(item)}
-      >
+      <div className="item-media" onClick={() => onItemClick(item)}>
         <img
-          src={asset(src)}
+          src={assetFn(src)}
           alt={item.caption ?? ''}
           loading="lazy"
           onLoad={e => setPortrait(e.target.naturalHeight > e.target.naturalWidth)}

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A fully static webpage — no server, no build step required, no backend. All assets (images, audio, video) live in the repository. The UI simulates a physical book: two open pages side-by-side, photos with handwritten-style text annotations, hover-to-zoom, page-turn navigation. No backend. No social features.
+A fully static photobook viewer — no server, no backend. All assets (images, video) live in the repository. The UI shows a shelf of books; selecting one opens a physical-book simulation with two pages side-by-side, handwritten annotations, photo zoom, and swipe/click navigation.
 
 ## Stack
 
@@ -19,125 +19,92 @@ npm run build     # production build → dist/
 npm run preview   # preview the production build locally
 ```
 
-When adding new pages, add their IDs to `public/pages/manifest.json`.
-
 ## Base Path
 
-Handled entirely by Vite — no manual detection needed. `vite.config.js` sets `base: '/photobook/'` for production builds and `base: '/'` for dev. All asset paths in the app use `import.meta.env.BASE_URL` via the `asset()` helper in `src/config.js`. Never hardcode `/photobook/` anywhere else.
-
-## Design Principles
-
-- Use the most reliable, maintainable frontend technologies — optimized for a developer with a backend background.
-- Keep abstractions small and elegant. Prefer clarity over cleverness.
-- Modularize and reuse logic. Desktop and Mobile share behavior; implementation differences must be hidden behind meaningful abstractions (not scattered conditionals).
-- Book and Pages UI components are drawn programmatically because they are animated (page-turn effect). Do not use static HTML/CSS for these.
-
-## Media
-
-- All assets (images, audio, video) are committed to the repo and referenced by relative path in the content data.
-- Photos in the photobook display a still image. A photo entry can optionally point to a video file; clicking the zoomed image plays the video. A separate still can be provided for the thumbnail; if omitted, the video's first frame is used.
-- Vertical (portrait-orientation) photos and videos are allowed but the UI is designed for horizontal aspect ratios. Portrait media is fit-to-height and displayed as-is — nothing is rotated or scaled up to fill width.
-- Audio, when attached, is independent of video. A photo entry can have audio, a video, both, or neither.
-
-## Hosting & Base Path
-
-The site is hosted at `<domain>/photobook/` via GitHub Pages, but must also work when opened directly from the filesystem or a local server at `/`.
-
-All internal navigation and asset paths must go through a single `basePath()` helper (or equivalent constant). This is the only place where the path prefix is resolved:
-
-- **Local** (`localhost` or `file://`): prefix is `""` (empty).
-- **Production** (any other hostname): prefix is `"/photobook"`.
+`vite.config.js` sets `base: '/photobook/'` for production and `'/'` for dev. All asset paths use `import.meta.env.BASE_URL` via helpers in `src/config.js`. Never hardcode `/photobook/` elsewhere.
 
 ```js
-const BASE = (location.hostname === 'localhost' || location.protocol === 'file:')
-  ? ''
-  : '/photobook';
+// src/config.js
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
+export const manifestPath          = `${BASE}/manifest.json`
+export const bookPath  = id       => `${BASE}/books/${id}/book.md`
+export const bookAsset = (id, path) => `${BASE}/books/${id}/${path}`
 ```
 
-Asset paths in content data files are written as bare relative paths (e.g. `"photos/img1.jpg"`). The `basePath()` helper prepends `BASE` when constructing `src` or `href` values. Never hardcode `/photobook/` anywhere else in the codebase.
-
-## Desktop UX
-
-- Simulates an open book: left page + right page visible simultaneously.
-- Photos can appear on either page.
-- **Hover photo** → zooms to fill most of the screen.
-- **Click zoomed photo** → if the entry has a video, plays the video inline; otherwise returns to book state. Returning from video also returns to book state.
-- Vertical media is displayed at its natural aspect ratio, fit to the available height. No cropping or rotation.
-- **Hover text annotation** → zoom shows photo + text, with text taking more prominence than the photo.
-- If audio is attached to a photo, a speaker emoji appears; clicking plays it. Audio stops when UI returns to book state.
-- **Click left/right edge** → turns page in that direction.
-- Text annotations use a pen/handwriting-style font with configurable color.
-
-## Mobile UX
-
-- Phone held in landscape orientation so the book layout works horizontally.
-- Touch events replace click/hover events.
-- Same visual layout and behavior as desktop, adapted for touch.
-
-## Book Visual Anatomy
-
-The book is drawn programmatically (canvas or SVG). Key visual elements:
-
-- **Pages**: rectangular. Near the spine (center), each page curves inward to mimic natural page curvature — achieved with a subtle concave arc on the inner edge, not a border-radius.
-- **Cover/back**: a flat, slightly darker rectangle that extends a few pixels beyond the page edges on all sides, visible behind both open pages. Represents the book cover.
-- **Page stack (depth)**: behind each open page, draw additional thin page-edge slices to convey book thickness. The number of visible slices scales with total page count — more pages = thicker stack — up to a reasonable visual cap. This is purely decorative and drawn once; it does not animate.
-- **Spine shadow**: a soft vertical shadow at the center where the two pages meet reinforces the 3D effect.
-
-## Content Format (Domain Language)
-
-Content is authored in `.md` files using a minimal, UI-agnostic domain language. The parser reads these files and produces a `Page[]` domain model consumed by the renderer. The `.md` format must remain implementation-agnostic so it can be consumed by a future UI without change.
-
-**Domain model types** (shared, not tied to any renderer):
+## Content Structure
 
 ```
-Album        { title, pages: Page[] }
-Page         { number: number, items: Item[] }   // one page = one side of the open book
-                                                  // pages[0] = page 00 (empty), pages[1] = page 01 (index)
-Item         { kind, caption?, audio? }
-  PhotoItem  { kind: "photo", src: string }
-  VideoItem  { kind: "video", src: string, still?: string }
-              // still: optional thumbnail; omit to use first frame
-  IndexItem  { kind: "index", entries: IndexEntry[] }  // only valid on page 01
-IndexEntry   { label: string, targetPage: number }
+public/
+  manifest.json          # { "books": ["my-book", "my-book-2"] }
+  bg.jpg                 # shelf/book background texture
+  books/
+    <id>/
+      book.md            # single file per book (see format below)
+      photos/            # assets referenced in book.md
 ```
 
-**Page file naming**: each page is its own `.md` file named `NNNN.md` (4-digit zero-padded, e.g. `0000.md`, `0001.md`, `0012.md`). Pages are paired into spreads: `(0000, 0001)`, `(0002, 0003)`, … The album loads them in order.
-
-**Reserved pages:**
-- `0000.md` — always empty. Left page of the first spread; mirrors the blank first page of a real book. No content, no items.
-- `0001.md` — the index. Right page of the first spread and the landing view of the web. Contains a list of named entries, each referencing a target page number. Clicking an entry navigates directly to that spread.
-
-**Index page format** (`0001.md`):
+### book.md Format
 
 ```markdown
-- [A day at the beach](#0012)
-- [Sunset hike](#0020)
-- [City lights](#0034)
-```
+---
+color: #7a2e0e        # cover color (CSS color value)
+---
 
-Each list item is a navigation link. `#NNNN` refers to the page number to jump to (the spread containing that page is shown).
+# Book Title          # sets book.title
 
-**Regular page format** (all other `.md` files):
+## Section Name       # creates an index entry; first page under it is its target
 
-```markdown
-![A day at the beach](photos/beach.jpg)
-*It was warm and bright.*
+####                  # page break (starts a new two-page spread slot)
 
-![](photos/sunset.jpg "still:photos/sunset-thumb.jpg | video:videos/sunset.mp4")
-[audio:audio/waves.mp3]
-*The last light of the day.*
+![](photos/img.jpg)
+*Annotation text*
+
+![](photos/img2.jpg)
+*Another annotation*
+
+####                  # second page in the same spread (or start of next spread)
+
+![](photos/img3.jpg)
+*Text*
 ```
 
 Rules:
-- `![]()` is a photo or video item. The alt text is the caption. Title attribute carries optional `still:` and `video:` overrides separated by `|`.
-- `[audio:path]` attaches audio to the preceding item.
-- `*...*` italics is the text annotation (rendered in handwriting font).
-- All paths are bare and relative (no leading `/`); the renderer applies `basePath()`.
+- `#` sets the book title (one per book)
+- `##` declares a named section; auto-generates an index entry pointing to its first `####` page
+- `####` is a page break (each holds up to ~2 items)
+- `![]()` is a photo. Alt text is ignored; the `*italic*` line below is the annotation.
+- All photo paths are relative to the book directory.
+- Pages 0 (blank) and 1 (auto-generated index) are prepended by the parser. Content pages start at index 2.
 
-The parser lives in its own module and only produces domain model objects — it has no knowledge of the renderer.
+## Domain Model
 
-## Architecture Notes
+```
+Book    { id, title, config: { color? }, pages: Page[] }
+Page    { index, items: Item[] }
+Item    PhotoItem  { kind: 'photo', src, annotation? }
+        VideoItem  { kind: 'video', src, annotation? }
+        IndexItem  { kind: 'index', entries: [{ label, targetPage }] }
+```
 
-- Desktop and Mobile paths share core data and logic. When adding a feature, implement the logic once and expose it through a shared abstraction; Desktop and Mobile consume the abstraction differently.
-- Layers: **content files** (`.md`) → **parser** (produces `Album`) → **renderer** (Book/Page drawing) → **interaction layer** (zoom, video, audio state). These layers must not be entangled.
-- Audio playback is tied to UI state: always stop audio (and video) on any UI transition back to the book view.
+## Architecture
+
+**Data flow**: `manifest.json` → `App.jsx` fetches book list → on book open, fetch+parse `book.md` → `Book.jsx` renders spreads.
+
+**Key files**:
+- `src/parser.js` — parses `book.md` into `Book` domain object (frontmatter + heading hierarchy + page breaks)
+- `src/config.js` — all URL helpers
+- `src/components/Shelf.jsx` — drag-to-browse book picker; `computeBookDims()` mirrors CSS `--book-w` formula for JS-side spacing
+- `src/components/Book.jsx` — spread renderer; creates `assetFn = path => bookAsset(id, path)` and passes it down
+- `src/components/Page.jsx` — renders items (photo/video/index) for one page
+- `src/components/Item.jsx` — single photo+annotation unit; detects portrait orientation via `img.onload`
+- `src/components/ZoomOverlay.jsx` — full-screen zoom; receives `assetFn`
+- `src/components/RotatePrompt.jsx` — fixed overlay shown on mobile portrait
+
+**CSS design tokens** (`:root` in `styles.css`):
+- `--book-w: min(95vw, calc(92vh / 0.63))` — book fills the screen, no fixed cap
+- `--book-color: #3a1f08` — default cover color; overridden per-book via `style={{ '--book-color': color }}`
+- `color-mix(in srgb, var(--book-color), ...)` used for spine/gradient depth on cover and shelf books
+
+**Mobile**: `(pointer: coarse) and (orientation: portrait)` media query pre-rotates `.book` and `body::before` (background) by −90deg so the layout is already correct when the user rotates their device. `RotatePrompt` is a fixed overlay rendered on top of the book, not a replacement.
+
+**`assetFn` pattern**: `Book.jsx` owns `book.id`; it creates `assetFn` and passes it to `Page` → `Item` / `ZoomOverlay` so those components are book-agnostic.
